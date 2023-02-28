@@ -11,6 +11,7 @@ from sklearn.neighbors import NearestNeighbors
 from scipy.spatial import distance_matrix
 from scipy.stats import gaussian_kde
 import collections
+import math
 
 #================================================================================#
 
@@ -238,3 +239,171 @@ def Skeleton_Construction(X, centers = None, labels = None, k = None, rep = 100,
         edgeWeights = skelWeights(X, conKnots, wedge, h, R0, idx_frustum)
         output.update(edgeWeights)
     return(output)
+
+
+def skelProject(X, skeleton, nn = None):
+    """
+      Project data points onto the skeleton
+  
+      Parameters
+      ----------
+      X: the matrix of the data points to be projected
+      skeleton: a list returned by segment_Skeleton()
+      nn: the matrix where each row records the indices of the two closest centers of the corresponding data point.
+  
+  
+      Returns
+      -------
+      A vector where each entry records the projection proportion of the corresponding data point 
+      on the edge by the two closest knots, from the smaller index knot. NA if the two closest knots not connected.
+  
+    """
+    knots = skeleton["centers"]
+    kkdists = skeleton["kkdists"]
+    g = skeleton["g"]
+    n = len(X)
+  
+    if nn is None:
+        nbrs = NearestNeighbors(n_neighbors=2).fit(knots)
+        nn = nbrs.kneighbors(X, return_distance=False) #2-nearest neighbor calculation
+  
+    #calculate the projection for each data point
+    #a proportion between [0,1] is recorded
+    px = [None]*n
+    for i in range(n):
+        #begin calculate the projection for each data point
+        if g.are_connected(nn[i,0], nn[i,1]):
+            #if the two nearest knots are connected
+            k0 = np.min(nn[i,:])
+            k1 = np.max(nn[i,:])
+            #directional vector
+            #always use the smaller index as the starting point
+            v = (knots[k1,:]-knots[k0,:])/kkdists[k0,k1]
+            prop = np.dot(X[i,:]-knots[k0,], v)/kkdists[k0,k1] #projected proportion
+            px[i] = max(min(prop, 1),0) #confine to [0,1]
+      #leave the projection to knot cases as None
+    
+    return(px)
+
+
+def dskeleton(nnc1, nnc2, px1, px2, skeleton):
+    g = skeleton["g"]
+    kkdists = skeleton["kkdists"]
+  
+    #simplify calculation by only focusing on pair of points sharing at least one knot
+    if len(np.intersect1d(nnc1,nnc2))<1:
+        return(float('inf'))
+    #case when both data points cannot be projected onto an edge
+    elif px1 is None and px2 is None:
+        # g.shortest_paths(nnc1[0], nnc2[0], weights='weight') #for general graph distance
+        return(kkdists[nnc1[0], nnc2[0]])
+    #case when point id1 can be projected onto an edge but not point 2
+    elif px1 is not None and px2 is None:
+        btnodes1 = g.shortest_paths(nnc1[0], nnc2[0], weights='weight')[0][0]
+        btnodes2 = g.shortest_paths(nnc1[1], nnc2[0], weights='weight')[0][0]
+        if not math.isfinite(btnodes1) and not math.isfinite(btnodes2):
+            return(float('inf'))
+        elif btnodes1 < btnodes2:#shortest path from nnc1[0]
+            if nnc1[0] < nnc1[1]: #nnc1[0] is the reference point for projection
+                return(btnodes1 + kkdists[nnc1[0], nnc1[1]]*px1 )
+            else:
+                return(btnodes1 + kkdists[nnc1[0], nnc1[1]]*(1-px1) )
+        else: ##shortest path from nnc1[1], btnodes2 < btnodes1
+            if nnc1[0] < nnc1[1]: #nnc1[0] is the reference point for projection
+                return(btnodes2 + kkdists[nnc1[0], nnc1[1]]*(1-px1) )
+            else:
+                return(btnodes2+ kkdists[nnc1[0], nnc1[1]]*px1 )
+    #case when point id2 can be projected onto an edge
+    elif px1 is None and px2 is not None:
+        btnodes1 = g.shortest_paths(nnc1[0], nnc2[0], weights='weight')[0][0]
+        btnodes2 = g.shortest_paths(nnc1[0], nnc2[1], weights='weight')[0][0]
+        if not math.isfinite(btnodes1) and not math.isfinite(btnodes2):
+            return(float('inf'))
+        elif btnodes1 < btnodes2:#shortest path from nnc2[0]
+            if nnc2[0] < nnc2[1]: #nnc2[0] is the reference point for projection
+                return(btnodes1 + kkdists[nnc2[0], nnc2[1]]*px2 )
+            else:
+                return(btnodes1 + kkdists[nnc2[0], nnc2[1]]*(1-px2) )
+        else: ##shortest path from nnc2[1], btnodes2 < btnodes1
+            if nnc2[0] < nnc2[1]: #nnc2[0] is the reference point for projection
+                return(btnodes2 + kkdists[nnc2[0], nnc2[1]]*(1-px2) )
+            else:
+                return(btnodes2+ kkdists[nnc2[0], nnc2[1]]*px2 )
+    else: #case when both points are projected onto edges
+        btnodes = [g.shortest_paths(nnc1[0], nnc2[0], weights='weight')[0][0],
+        g.shortest_paths(nnc1[0], nnc2[1], weights='weight')[0][0],
+        g.shortest_paths(nnc1[1], nnc2[0], weights='weight')[0][0],
+        g.shortest_paths(nnc1[1], nnc2[1], weights='weight')[0][0]
+        ]
+        if np.all(np.invert(np.isfinite(btnodes))): #all are infinite
+            return(float('inf'))
+    
+        idmin = np.argmin(btnodes)
+        temp = np.min(btnodes)
+        if idmin == 0: #nnc1[0] and nnc2[0] are the closest
+            if nnc1[0] < nnc1[1]:#nnc1[0] is the reference point for id1 projection
+                temp = temp + kkdists[nnc1[0], nnc1[1]]*px1
+            else:
+                temp = temp + kkdists[nnc1[0], nnc1[1]]*(1-px1)
+            if nnc2[0] < nnc2[1]: #nnc2[0] is the reference point for id2 projection
+                temp = temp + kkdists[nnc2[0], nnc2[1]]*px2
+            else:
+                temp = temp + kkdists[nnc2[0], nnc2[1]]*(1-px2)
+            return(temp)
+        elif idmin == 1: #nnc1[0] and nnc2[1] are closest
+            if nnc1[0] < nnc1[1]:#nnc1[0] is the reference point for id1 projection
+                temp = temp + kkdists[nnc1[0], nnc1[1]]*px1
+            else:
+                temp = temp + kkdists[nnc1[0], nnc1[1]]*(1-px1)
+            if nnc2[0] < nnc2[1]: #nnc2[0] is the reference point for id2 projection
+                temp = temp + kkdists[nnc2[0], nnc2[1]]*(1-px2)
+            else:
+                temp = temp + kkdists[nnc2[0], nnc2[1]]*px2
+            return(temp)
+        elif idmin == 2: #nnc1[1] and nnc2[0] are closest
+            if nnc1[0] < nnc1[1]:#nnc1[0] is the reference point for id1 projection
+                temp = temp + kkdists[nnc1[0], nnc1[1]]*(1-px1)
+            else:
+                temp = temp + kkdists[nnc1[0], nnc1[1]]*px1
+            if nnc2[0] < nnc2[1]:#nnc2[1] is the reference point for id2 projection
+                temp = temp + kkdists[nnc2[0], nnc2[1]]*px2
+            else:
+                temp = temp + kkdists[nnc2[0], nnc2[1]]*(1-px2)
+            return(temp)
+        else: #nnc1[2] and nnc2[2] are closest
+            if nnc1[0] < nnc1[1]: #nnc1[1] is the reference point for id1 projection
+                temp = temp + kkdists[nnc1[0], nnc1[1]]*(1-px1)
+            else:
+                temp = temp + kkdists[nnc1[0], nnc1[1]]*px1
+            if nnc2[0] < nnc2[1]: #nnc2[0] is the reference point for id2 projection
+                temp = temp + kkdists[nnc2[0], nnc2[1]]*(1-px2)
+            else:
+                temp = temp + kkdists[nnc2[0], nnc2[1]]*px2
+            return(temp)
+        
+        
+# pairwise skeleton-based distance
+def pairdskeleton(xnn, ynn, px,  py, skeleton):
+    """
+      pairwise skeleton-based distance
+  
+      Parameters
+      ----------
+      xnn/ ynn: the matrix where each row records the indices of the two closest centers of the corresponding data point.
+      px/ py: projecting proportions as returned by skelProject()
+      skeleton: a list returned by segment_Skeleton()
+  
+  
+      Returns
+      -------
+      pairwise skeleton-based distances between the two sets of points on the skeleton.
+  
+    """
+    xydists = np.array([[float('inf') for col in range(len(py))] for row in range(len(px))])
+    for i in range(len(px)):
+      #calculate graph distances between knots and sample points
+      for j in range(len(py)):
+        xydists[i,j] = dskeleton(xnn[i,], ynn[j,],  px[i], py[j], skeleton = skeleton)
+  
+    return(np.array(xydists))
+

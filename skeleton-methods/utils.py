@@ -7,6 +7,7 @@
 # in practice.
 
 import numpy as np
+from sklearn.preprocessing import scale
 
 #================================================================================#
 
@@ -95,3 +96,23 @@ def Yinyang_data(n_m=400,n_c=200,n_r=2000,var_c=0.01,sd_r=0.1, d=2, sd_high=0.1)
     label = np.concatenate((X_m["label"], [2 for _ in range(n_c)] ,  [3 for _ in range(n_c)] , [4 for _ in range(n_r)] ), axis=None)
     
     return {"data": X, "label" :label}
+
+
+def SwissRollRegData(N=2000, Height=4*np.pi,start = np.pi, roll=1, d = 3, sd_high=0.1, sd_e = 0.3):
+    ## build manifold
+    c = np.log((start + 2*np.pi*roll)/start) #need start > 0
+    p = start * np.exp(c * np.random.uniform(0,1, N)) 
+    y = np.array(Height * np.random.uniform(0,1, N))
+    X = np.stack((p * np.cos(p), p * np.sin(p), y), axis=1)
+    X = scale(X)
+  
+    if d>3:
+        d_add = d-3
+        noised = np.random.normal(0, sd_high, size = (N, int(d_add)))
+        X = np.hstack((X, noised))
+  
+    p0 = p - start -  np.pi * roll
+    response =  0.1* p0**3 * np.logical_or( (y<np.pi) , np.logical_and(y > 2*np.pi , y<3*np.pi))
+    Y0 = response + np.random.normal(0, sd_e, N)
+  
+    return({"data" :X , "Y" : Y0, "trueY" : response, "angles" : p, "heights" : y})
