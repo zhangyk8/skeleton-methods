@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="skeleton-methods",
-    version="0.0.1",
+    version="0.0.2",
     author="Zeyu Wei, Yikun Zhang",
     author_email="zwei5@uw.edu, yikunzhang@foxmail.com",
     description="Skeleton-Based Methods for Clustering and Regression on Underlying Manifolds",
@@ -20,6 +20,6 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     packages=setuptools.find_packages(include=["skeleton-methods"]),
-    install_requires=["numpy", "scipy", "scikit-learn"],
+    install_requires=["numpy", "scipy", "scikit-learn", "igraph"],
     python_requires=">=3.6",
 )

@@ -11,7 +11,6 @@ from sklearn.neighbors import NearestNeighbors
 from scipy.spatial import distance_matrix
 from scipy.stats import gaussian_kde
 import collections
-import math
 
 #================================================================================#
 
@@ -301,7 +300,7 @@ def dskeleton(nnc1, nnc2, px1, px2, skeleton):
     elif px1 is not None and px2 is None:
         btnodes1 = g.shortest_paths(nnc1[0], nnc2[0], weights='weight')[0][0]
         btnodes2 = g.shortest_paths(nnc1[1], nnc2[0], weights='weight')[0][0]
-        if not math.isfinite(btnodes1) and not math.isfinite(btnodes2):
+        if not np.isfinite(btnodes1) and not np.isfinite(btnodes2):
             return(float('inf'))
         elif btnodes1 < btnodes2:#shortest path from nnc1[0]
             if nnc1[0] < nnc1[1]: #nnc1[0] is the reference point for projection
@@ -317,7 +316,7 @@ def dskeleton(nnc1, nnc2, px1, px2, skeleton):
     elif px1 is None and px2 is not None:
         btnodes1 = g.shortest_paths(nnc1[0], nnc2[0], weights='weight')[0][0]
         btnodes2 = g.shortest_paths(nnc1[0], nnc2[1], weights='weight')[0][0]
-        if not math.isfinite(btnodes1) and not math.isfinite(btnodes2):
+        if not np.isfinite(btnodes1) and not np.isfinite(btnodes2):
             return(float('inf'))
         elif btnodes1 < btnodes2:#shortest path from nnc2[0]
             if nnc2[0] < nnc2[1]: #nnc2[0] is the reference point for projection
