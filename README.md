@@ -5,5 +5,8 @@
 
 # Python package for skeleton-methods
 
+## Install
+`pip install skeleton-methods`
 
-# With goal to apply to astronomy data
+## Usage
+`import skeleton_methods as skel`
