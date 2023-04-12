@@ -65,7 +65,7 @@ def constructKnots(X, centers = None, labels = None, k = None, rep = 100):
       
     withinss = np.array([0.0]*k)
     for i in range(k):
-        withinss[i] = np.sum((X[labels == i,]-centers[i,])**2)
+        withinss[i] = np.sum(np.square(X[labels == i,]-centers[i,]))
       
     return {"centers":centers, "cluster":labels, "nknots":k, "withinss": withinss}
 
@@ -96,6 +96,7 @@ def skelWeights(X, conKnots, wedge= "all", h = "silverman", R0 = None, idx_frust
     knots = conKnots["centers"]
     knotlabels = conKnots["cluster"]
     withinss = conKnots["withinss"]
+    kkdists = distance_matrix(knots,knots)
   
     #identify what edge weights to include
     edge_include = [False]*4
@@ -171,51 +172,51 @@ def skelWeights(X, conKnots, wedge= "all", h = "silverman", R0 = None, idx_frust
                     avedist_weights[i,j] = 0.0
                 continue
         
-        # Euclidean distance between two centers
-        d12 = np.sqrt(sum((center1-center2)**2))
+            # Euclidean distance between two centers
+            d12 = kkdists[i,j]
   
-        #compute the Voronoi density 
-        if edge_include[0]: 
-            voron_weights[i,j] = len(nn2ij)/d12
+            #compute the Voronoi density 
+            if edge_include[0]: 
+                voron_weights[i,j] = len(nn2ij)/d12
         
-        #compute the face density
-        if edge_include[1]:
-            v0 = (center2-center1)/d12 #direction vector
-            X_ij = X[np.union1d(wi1, wj1)]
-            p0_length = np.dot(X_ij-(center1+center2)/2,v0 )  #projected distance to middle point of the edge
-            p_dot = p0_length/d12 #standardize the projected distances into proportions
-            
-            kde = gaussian_kde(p_dot, bw_method=h) #KDE with projected points
-            face_weights[i,j] = kde.evaluate([0]) #interpolated density at middle point
-            #end face density calculation
-        
-        #compute tube density
-        if edge_include[2]: 
-            if not edge_include[1]: # recompute some quantities in Face density calculation
+            #compute the face density
+            if edge_include[1]:
                 v0 = (center2-center1)/d12 #direction vector
                 X_ij = X[np.union1d(wi1, wj1)]
+                p0_length = np.dot(X_ij-(center1+center2)/2,v0 )  #projected distance to middle point of the edge
+                p_dot = p0_length/d12 #standardize the projected distances into proportions
+
+                kde = gaussian_kde(p_dot, bw_method=h) #KDE with projected points
+                face_weights[i,j] = kde.evaluate([0]) #interpolated density at middle point
+                #end face density calculation
+
+            #compute tube density
+            if edge_include[2]: 
+                if not edge_include[1]: # recompute some quantities in Face density calculation
+                    v0 = (center2-center1)/d12 #direction vector
+                    X_ij = X[np.union1d(wi1, wj1)]
+
+                p1_length = np.dot(X_ij-center1,v0 )  # length to center1 after projection
+                p1_dot = p1_length/d12 #standardize the projected distances into proportions
+                perp_length = np.sqrt(np.sum((X_ij -center1)**2, axis=1)-p1_length**2) #orthogonal distance to the center-passing line
+
+                #threshold for each datapoint
+                R0_threshold = R0_lv[i] + (R0_lv[j]-R0_lv[i])*p1_dot
+                w_edge = np.where(perp_length<R0_threshold)#points that can be used in KDE
+
+                if len(w_edge)>1: #KDE works with more than 1 data point
+                    kde = gaussian_kde(p1_dot[w_edge], bw_method=h) #KDE with projected points
+                    # finding the minimal density
+                    frustum_weights[i,j] = min(kde.evaluate(np.linspace(0.0, 1.0, num=100)))
+            #end frustum density calculation
     
-            p1_length = np.dot(X_ij-center1,v0 )  # length to center1 after projection
-            p1_dot = p1_length/d12 #standardize the projected distances into proportions
-            perp_length = np.sqrt(np.sum((X_ij -center1)**2, axis=1)-p1_length**2) #orthogonal distance to the center-passing line
-        
-            #threshold for each datapoint
-            R0_threshold = R0_lv[i] + (R0_lv[j]-R0_lv[i])*p1_dot
-            w_edge = np.where(perp_length<R0_threshold)#points that can be used in KDE
-            
-            if len(w_edge)>1: #KDE works with more than 1 data point
-                kde = gaussian_kde(p1_dot[w_edge], bw_method=h) #KDE with projected points
-                # finding the minimal density
-                frustum_weights[i,j] = min(kde.evaluate(np.linspace(0.0, 1.0, num=100)))
-        #end frustum density calculation
-  
-        # compute avedist density
-        if edge_include[3]: 
-            dists = distance_matrix(X[wi1,], X[wj1,])
-            avedist_weights[i,j] = np.mean(dists)
-        #end avedist density
-  
-    output = {"nn": X_nn}
+            # compute avedist density
+            if edge_include[3]: 
+                dists = distance_matrix(X[wi1,], X[wj1,])
+                avedist_weights[i,j] = np.mean(dists)
+            #end avedist density
+    
+    output = {"nn": X_nn, "kkdists": kkdists}
     if edge_include[0]:
         output.update( {"voron_weights": voron_weights + np.transpose((voron_weights))})
     if edge_include[1]:
