@@ -48,8 +48,10 @@ def constructKnots(X, centers = None, labels = None, k = None, rep = 100):
         labels = km.labels_
     
     elif labels is None:#centers provided but not labels
+        centers = np.array(centers)
         nbrs = NearestNeighbors(n_neighbors=1).fit(centers)
         labels = nbrs.kneighbors(X, return_distance=False)
+        np.array([sublist[0] for sublist in labels])
         k = len(centers)
           
     elif centers is None:#labels provided but not centers
