@@ -38,7 +38,7 @@ def constructKnots(X, centers = None, labels = None, k = None, rep = 100):
     #construct knots
     if centers is None and labels is None:
         # Overfitting k-means
-        #setting the number of knots k
+        # setting the number of knots k
         if k is None:
             k = round(np.sqrt(n))
     
@@ -47,14 +47,16 @@ def constructKnots(X, centers = None, labels = None, k = None, rep = 100):
         centers = km.cluster_centers_
         labels = km.labels_
     
-    elif labels is None:#centers provided but not labels
+    # centers provided but not labels
+    elif labels is None:
         centers = np.array(centers)
         nbrs = NearestNeighbors(n_neighbors=1).fit(centers)
         labels = nbrs.kneighbors(X, return_distance=False)
         np.array([sublist[0] for sublist in labels])
         k = len(centers)
-          
-    elif centers is None:#labels provided but not centers
+
+    # labels provided but not centers      
+    elif centers is None:
         elements_count = collections.Counter(labels)
         k = len(elements_count.items())
         centers = np.array([[0.0 for col in range(d)] for row in range(k)])
