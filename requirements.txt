@@ -1,7 +1,0 @@
-numpy
-scipy
-scikit-learn
-igraph
-sphinx>=1.4
-ipykernel
-nbsphinx
