@@ -297,6 +297,10 @@ def dskeleton(nnc1, nnc2, px1, px2, skeleton):
     #simplify calculation by only focusing on pair of points sharing at least one knot
     if len(np.intersect1d(nnc1,nnc2))<1:
         return(float('inf'))
+    
+    # if both on the same edge, direct calculate the distance
+    if len(np.intersect1d(nnc1,nnc2))==2:
+        return(kkdists[nnc1[0], nnc1[1]]*abs(px1 - px2) )
     #case when both data points cannot be projected onto an edge
     elif px1 is None and px2 is None:
         # g.shortest_paths(nnc1[0], nnc2[0], weights='weight') #for general graph distance
